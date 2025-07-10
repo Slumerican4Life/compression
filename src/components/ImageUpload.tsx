@@ -159,14 +159,13 @@ const ImageUpload = () => {
             id="file-upload"
           />
           
-          <label htmlFor="file-upload">
-            <Button 
-              variant="outline" 
-              className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-            >
-              Choose Files
-            </Button>
-          </label>
+          <Button 
+            variant="outline" 
+            className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-all duration-300"
+            onClick={() => document.getElementById('file-upload')?.click()}
+          >
+            Choose Files
+          </Button>
         </div>
       </Card>
 
