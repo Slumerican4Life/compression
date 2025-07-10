@@ -1,36 +1,33 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, X, Image as ImageIcon, Download, Settings, Loader2 } from 'lucide-react';
+import { Upload, Settings, Loader2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { compressImage, downloadFile, downloadAllFiles } from '@/utils/imageCompression';
-
-interface UploadedFile {
-  id: string;
-  file: File;
-  preview: string;
-  size: string;
-}
-
-interface CompressedFile {
-  id: string;
-  originalFile: File;
-  compressedFile: File;
-  originalSize: number;
-  compressedSize: number;
-  compressionRatio: number;
-  preview: string;
-}
+import { downloadAllFiles } from '@/utils/imageCompression';
+import { useCompressionQueue } from '@/hooks/useCompressionQueue';
+import QueueManager from '@/components/QueueManager';
+import ImageComparison from '@/components/ImageComparison';
 
 const ImageUpload = () => {
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
-  const [isCompressing, setIsCompressing] = useState(false);
   const [quality, setQuality] = useState([0.8]);
+  const [selectedComparison, setSelectedComparison] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  // Use the new queue management hook
+  const {
+    queue,
+    isProcessing,
+    overallProgress,
+    addToQueue,
+    removeFromQueue,
+    processQueue,
+    clearQueue,
+    retryFailed,
+    getQueueStats,
+  } = useCompressionQueue();
 
   const formatFileSize = (bytes: number): string => {
     if (bytes === 0) return '0 B';
@@ -67,28 +64,14 @@ const ImageUpload = () => {
       validFiles.push(file);
     });
 
-    validFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const newFile: UploadedFile = {
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-          preview: e.target?.result as string,
-          size: formatFileSize(file.size),
-        };
-        
-        setUploadedFiles(prev => [...prev, newFile]);
-      };
-      reader.readAsDataURL(file);
-    });
-
     if (validFiles.length > 0) {
+      addToQueue(validFiles);
       toast({
-        title: "Files uploaded successfully",
-        description: `${validFiles.length} JPEG file${validFiles.length > 1 ? 's' : ''} ready for compression.`,
+        title: "Files added to queue",
+        description: `${validFiles.length} JPEG file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
       });
     }
-  }, [toast]);
+  }, [toast, addToQueue]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -121,64 +104,19 @@ const ImageUpload = () => {
     }
   }, [validateAndProcessFiles]);
 
-  const removeFile = useCallback((id: string) => {
-    setUploadedFiles(prev => prev.filter(file => file.id !== id));
-  }, []);
+  const handleStartCompression = useCallback(async () => {
+    await processQueue({
+      quality: quality[0],
+      maxWidth: 1920,
+      maxHeight: 1080,
+    });
+  }, [processQueue, quality]);
 
-  const handleCompress = useCallback(async () => {
-    if (uploadedFiles.length === 0) {
-      toast({
-        title: "No files to compress",
-        description: "Please upload some JPEG files first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsCompressing(true);
-    setCompressedFiles([]);
-
-    try {
-      const compressionPromises = uploadedFiles.map(async (uploadedFile) => {
-        const result = await compressImage(uploadedFile.file, {
-          quality: quality[0],
-          maxWidth: 1920,
-          maxHeight: 1080,
-        });
-
-        const compressedFile: CompressedFile = {
-          id: uploadedFile.id,
-          originalFile: uploadedFile.file,
-          compressedFile: result.compressedFile,
-          originalSize: result.originalSize,
-          compressedSize: result.compressedSize,
-          compressionRatio: result.compressionRatio,
-          preview: uploadedFile.preview,
-        };
-
-        return compressedFile;
-      });
-
-      const results = await Promise.all(compressionPromises);
-      setCompressedFiles(results);
-
-      toast({
-        title: "Compression completed",
-        description: `Successfully compressed ${results.length} image${results.length > 1 ? 's' : ''}.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Compression failed",
-        description: "Some images failed to compress. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsCompressing(false);
-    }
-  }, [uploadedFiles, quality, toast]);
+  const completedItems = queue.filter(item => item.status === 'completed');
+  const queueStats = getQueueStats();
 
   return (
-    <div className="w-full max-w-4xl mx-auto p-6 space-y-8">
+    <div className="w-full max-w-6xl mx-auto p-6 space-y-8">
       {/* Upload Area */}
       <Card 
         className={`
@@ -232,52 +170,9 @@ const ImageUpload = () => {
         </div>
       </Card>
 
-      {/* Uploaded Files Grid */}
-      {uploadedFiles.length > 0 && (
-        <div className="space-y-6">
-          <h2 className="text-2xl font-semibold text-foreground">
-            Uploaded Images ({uploadedFiles.length})
-          </h2>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {uploadedFiles.map((file, index) => (
-              <Card 
-                key={file.id} 
-                className="overflow-hidden shadow-soft hover:shadow-medium transition-all duration-300 animate-fade-in group"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="relative">
-                  <img
-                    src={file.preview}
-                    alt={file.file.name}
-                    className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  
-                  <button
-                    onClick={() => removeFile(file.id)}
-                    className="absolute top-2 right-2 bg-destructive text-destructive-foreground rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-destructive/90"
-                    aria-label="Remove image"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  
-                  <div className="absolute bottom-2 left-2 bg-background/90 backdrop-blur-sm rounded-md px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <ImageIcon className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </div>
-                
-                <div className="p-4">
-                  <h4 className="font-medium text-sm text-foreground truncate mb-1" title={file.file.name}>
-                    {file.file.name}
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    {file.size}
-                  </p>
-                </div>
-              </Card>
-            ))}
-          </div>
-          
+      {/* Queue Management */}
+      {queue.length > 0 && (
+        <>
           {/* Compression Settings */}
           <Card className="p-6">
             <div className="flex items-center gap-4 mb-4">
@@ -285,8 +180,8 @@ const ImageUpload = () => {
               <h3 className="text-lg font-semibold text-foreground">Compression Settings</h3>
             </div>
             
-            <div className="space-y-4">
-              <div>
+            <div className="flex items-center gap-6">
+              <div className="flex-1">
                 <Label htmlFor="quality" className="text-sm font-medium">
                   Quality: {Math.round(quality[0] * 100)}%
                 </Label>
@@ -305,96 +200,142 @@ const ImageUpload = () => {
                   Higher quality = larger file size, Lower quality = smaller file size
                 </p>
               </div>
+              
+              <Button 
+                onClick={handleStartCompression}
+                disabled={isProcessing || queueStats.pending === 0}
+                size="lg"
+                className="bg-gradient-primary hover:bg-primary-hover text-primary-foreground shadow-medium hover:shadow-large transition-all duration-300 px-8 py-3"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Processing Queue...
+                  </>
+                ) : (
+                  `Start Compression (${queueStats.pending})`
+                )}
+              </Button>
             </div>
           </Card>
 
-          {/* Compress Button */}
-          <div className="flex justify-center pt-6">
-            <Button 
-              onClick={handleCompress}
-              disabled={isCompressing}
-              size="lg"
-              className="bg-gradient-primary hover:bg-primary-hover text-primary-foreground shadow-medium hover:shadow-large transition-all duration-300 px-8 py-3 text-lg font-semibold"
-            >
-              {isCompressing ? (
-                <>
-                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  Compressing...
-                </>
-              ) : (
-                `Compress Images (${uploadedFiles.length})`
-              )}
-            </Button>
-          </div>
-        </div>
+          <QueueManager
+            queue={queue}
+            isProcessing={isProcessing}
+            overallProgress={overallProgress}
+            onRemoveItem={removeFromQueue}
+            onRetryFailed={() => retryFailed({
+              quality: quality[0],
+              maxWidth: 1920,
+              maxHeight: 1080,
+            })}
+            onClearQueue={clearQueue}
+            queueStats={queueStats}
+          />
+        </>
       )}
 
-      {/* Compressed Files Grid */}
-      {compressedFiles.length > 0 && (
+      {/* Completed Images with Download All */}
+      {completedItems.length > 0 && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-semibold text-foreground">
-              Compressed Images ({compressedFiles.length})
+              Compressed Images ({completedItems.length})
             </h2>
             <Button 
-              onClick={() => downloadAllFiles(compressedFiles.map(f => f.compressedFile))}
+              onClick={() => downloadAllFiles(completedItems.map(item => item.result!.compressedFile))}
               variant="outline"
               className="hover:bg-primary hover:text-primary-foreground"
             >
-              <Download className="w-4 h-4 mr-2" />
               Download All
             </Button>
           </div>
           
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {compressedFiles.map((file, index) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {completedItems.map((item, index) => (
               <Card 
-                key={file.id} 
+                key={item.id} 
                 className="overflow-hidden shadow-soft hover:shadow-medium transition-all duration-300 animate-fade-in group"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
                 <div className="relative">
                   <img
-                    src={file.preview}
-                    alt={file.originalFile.name}
+                    src={item.preview}
+                    alt={item.file.name}
                     className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
                   />
                   
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
                   <Button
-                    onClick={() => downloadFile(file.compressedFile)}
+                    onClick={() => setSelectedComparison(item.id)}
                     className="absolute bottom-2 right-2 bg-primary text-primary-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-primary/90"
                     size="sm"
                   >
-                    <Download className="w-4 h-4" />
+                    <Eye className="w-4 h-4" />
                   </Button>
                 </div>
                 
                 <div className="p-4 space-y-2">
-                  <h4 className="font-medium text-sm text-foreground truncate" title={file.originalFile.name}>
-                    {file.compressedFile.name}
+                  <h4 className="font-medium text-sm text-foreground truncate" title={item.file.name}>
+                    {item.result!.compressedFile.name}
                   </h4>
                   
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between text-muted-foreground">
                       <span>Original:</span>
-                      <span>{formatFileSize(file.originalSize)}</span>
+                      <span>{formatFileSize(item.result!.originalSize)}</span>
                     </div>
                     <div className="flex justify-between text-muted-foreground">
                       <span>Compressed:</span>
-                      <span>{formatFileSize(file.compressedSize)}</span>
+                      <span>{formatFileSize(item.result!.compressedSize)}</span>
                     </div>
                     <div className="flex justify-between font-medium">
                       <span className="text-foreground">Saved:</span>
                       <span className="text-green-600">
-                        {file.compressionRatio.toFixed(1)}%
+                        {item.result!.compressionRatio.toFixed(1)}%
                       </span>
                     </div>
                   </div>
                 </div>
               </Card>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Image Comparison Modal */}
+      {selectedComparison && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+            {(() => {
+              const item = completedItems.find(item => item.id === selectedComparison);
+              if (!item || !item.result) return null;
+              
+              return (
+                <ImageComparison
+                  originalFile={item.file}
+                  compressedFile={item.result.compressedFile}
+                  originalSize={item.result.originalSize}
+                  compressedSize={item.result.compressedSize}
+                  compressionRatio={item.result.compressionRatio}
+                  preview={item.preview}
+                  onRatingChange={(rating) => {
+                    console.log(`Image ${item.file.name} rated: ${rating}/5`);
+                  }}
+                />
+              );
+            })()}
+            
+            <div className="p-4 border-t">
+              <Button 
+                onClick={() => setSelectedComparison(null)}
+                variant="outline"
+                className="w-full"
+              >
+                Close Comparison
+              </Button>
+            </div>
           </div>
         </div>
       )}
