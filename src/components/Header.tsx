@@ -1,23 +1,73 @@
 import React from 'react';
-import { Zap } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { ImageIcon, Moon, Sun, LogOut, User, Crown } from 'lucide-react';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
 
 const Header = () => {
+  const { theme, toggleTheme } = useTheme();
+  const { user, signOut, subscribed } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
+
   return (
-    <header className="border-b bg-gradient-secondary">
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-primary rounded-2xl mb-6 shadow-medium">
-            <Zap className="w-8 h-8 text-primary-foreground" />
+    <header className="bg-background border-b">
+      <div className="container mx-auto px-4">
+        <div className="flex items-center justify-between h-16">
+          <Link to="/" className="flex items-center space-x-2">
+            <ImageIcon className="w-8 h-8 text-primary" />
+            <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+              ImageCompress Pro
+            </h1>
+          </Link>
+          
+          <div className="flex items-center space-x-4">
+            <Link to="/faq">
+              <Button variant="ghost">FAQ</Button>
+            </Link>
+            <Link to="/subscription">
+              <Button variant="ghost">Pricing</Button>
+            </Link>
+            
+            {/* Theme Toggle */}
+            <div className="flex items-center space-x-2">
+              <Sun className="w-4 h-4" />
+              <Switch 
+                checked={theme === 'dark'} 
+                onCheckedChange={toggleTheme}
+              />
+              <Moon className="w-4 h-4" />
+            </div>
+
+            {user ? (
+              <div className="flex items-center space-x-2">
+                {subscribed && (
+                  <Badge variant="default" className="bg-gradient-primary">
+                    <Crown className="w-3 h-3 mr-1" />
+                    Premium
+                  </Badge>
+                )}
+                <Button variant="ghost" size="sm">
+                  <User className="w-4 h-4 mr-2" />
+                  {user.email}
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleSignOut}>
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <Link to="/auth">
+                <Button variant="outline">Sign In</Button>
+              </Link>
+            )}
           </div>
-          
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Image Compressor
-          </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Compress your JPEG images effortlessly. Upload multiple files and reduce their size 
-            while maintaining excellent quality.
-          </p>
         </div>
       </div>
     </header>
