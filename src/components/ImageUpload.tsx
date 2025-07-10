@@ -1,21 +1,25 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Settings, Loader2, Eye } from 'lucide-react';
+import { Upload, Settings, Loader2, Eye, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useCompressionQueue } from '@/hooks/useCompressionQueue';
+import { useAuth } from '@/contexts/AuthContext';
 import QueueManager from '@/components/QueueManager';
 import ImageComparison from '@/components/ImageComparison';
 import CompletedImagesGrid from '@/components/CompletedImagesGrid';
 import AdSenseAd from '@/components/AdSenseAd';
+import AdminPanel from '@/components/AdminPanel';
 
 const ImageUpload = () => {
   const [isDragActive, setIsDragActive] = useState(false);
   const [quality, setQuality] = useState([0.8]);
   const [selectedComparison, setSelectedComparison] = useState<string | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
   const { toast } = useToast();
+  const { user, subscribed } = useAuth();
   
   // Use the new queue management hook
   const {
@@ -68,13 +72,21 @@ const ImageUpload = () => {
     });
 
     if (validFiles.length > 0) {
-      addToQueue(validFiles);
-      toast({
-        title: "Files added to queue",
-        description: `${validFiles.length} JPEG file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
-      });
+      try {
+        addToQueue(validFiles, subscribed);
+        toast({
+          title: "Files added to queue",
+          description: `${validFiles.length} JPEG file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
+        });
+      } catch (error: any) {
+        toast({
+          title: "Queue limit reached",
+          description: error.message,
+          variant: "destructive",
+        });
+      }
     }
-  }, [toast, addToQueue]);
+  }, [toast, addToQueue, subscribed]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -120,6 +132,86 @@ const ImageUpload = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-6 space-y-8">
+      {/* Admin Panel */}
+      {showAdmin && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-background border rounded-lg max-w-6xl w-full max-h-[95vh] overflow-auto shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold">Admin Panel</h2>
+                <Button onClick={() => setShowAdmin(false)} variant="outline">
+                  Close
+                </Button>
+              </div>
+              <AdminPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Access Button */}
+      {user?.email === 'cleanasawhistle1000@gmail.com' && (
+        <div className="flex justify-end">
+          <Button
+            onClick={() => setShowAdmin(true)}
+            variant="outline"
+            className="flex items-center gap-2"
+          >
+            <Crown className="w-4 h-4" />
+            Admin Panel
+          </Button>
+        </div>
+      )}
+
+      {/* Subscription Advertisement */}
+      {!subscribed && (
+        <Card className="border-primary bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10">
+          <div className="p-6 text-center">
+            <div className="flex items-center justify-center mb-4">
+              <Crown className="w-8 h-8 text-primary mr-2" />
+              <h3 className="text-xl font-bold text-primary">Upgrade to Premium!</h3>
+            </div>
+            <p className="text-muted-foreground mb-4">
+              Free users can only compress 3 images. Get unlimited compression for just $9.99/month!
+            </p>
+            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-4">
+              <span>✓ Unlimited image compression</span>
+              <span>✓ Advanced compression algorithms</span>
+              <span>✓ Priority processing</span>
+            </div>
+            <Button
+              onClick={() => window.open('/subscription', '_blank')}
+              className="bg-gradient-primary hover:opacity-90"
+            >
+              <Crown className="w-4 h-4 mr-2" />
+              Upgrade Now - $9.99/month
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* Usage Indicator for Free Users */}
+      {!subscribed && (
+        <Card className="p-4 bg-muted/30">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">
+              Images used: {queue.length}/3 (Free Plan)
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {queue.length >= 3 ? 'Limit reached!' : `${3 - queue.length} remaining`}
+            </span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-2 mt-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${
+                queue.length >= 3 ? 'bg-destructive' : 'bg-primary'
+              }`}
+              style={{ width: `${Math.min((queue.length / 3) * 100, 100)}%` }}
+            />
+          </div>
+        </Card>
+      )}
+
       {/* Top AdSense Ad */}
       <AdSenseAd 
         slot="top-banner" 

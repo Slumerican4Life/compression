@@ -32,8 +32,21 @@ export const useCompressionQueue = () => {
 
   const processQueueRef = useRef<((options: CompressionOptions) => Promise<void>) | null>(null);
 
-  const addToQueue = useCallback((files: File[]) => {
-    const newItems: QueueItem[] = files.map(file => ({
+  const addToQueue = useCallback((files: File[], subscribed: boolean) => {
+    const currentCount = queue.length;
+    const maxFiles = subscribed ? Infinity : 3;
+    const remainingSlots = maxFiles - currentCount;
+    
+    if (!subscribed && currentCount >= 3) {
+      throw new Error("Free users can only compress 3 images. Upgrade to Premium for unlimited compression!");
+    }
+    
+    const filesToAdd = subscribed ? files : files.slice(0, remainingSlots);
+    if (!subscribed && files.length > remainingSlots) {
+      throw new Error(`Free users can only compress 3 images total. You can add ${remainingSlots} more image${remainingSlots !== 1 ? 's' : ''}.`);
+    }
+
+    const newItems: QueueItem[] = filesToAdd.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       file,
       preview: URL.createObjectURL(file),
@@ -44,7 +57,7 @@ export const useCompressionQueue = () => {
     setQueue(prev => [...prev, ...newItems]);
     
     return newItems;
-  }, []);
+  }, [queue]);
 
   const removeFromQueue = useCallback((id: string) => {
     setQueue(prev => prev.filter(item => item.id !== id));
