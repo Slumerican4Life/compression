@@ -2,10 +2,11 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { ImageIcon, Moon, Sun, LogOut, User, Crown } from 'lucide-react';
+import { Moon, Sun, LogOut, User, Crown } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Badge } from '@/components/ui/badge';
+import neuronixLogo from '@/assets/neuronix-brain-logo.png';
 
 const Header = () => {
   const { theme, toggleTheme } = useTheme();
@@ -21,10 +22,10 @@ const Header = () => {
     <header className="bg-background border-b">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <Link to="/" className="flex items-center space-x-2">
-            <ImageIcon className="w-8 h-8 text-primary" />
+          <Link to="/" className="flex items-center space-x-3">
+            <img src={neuronixLogo} alt="Neuronix Brain" className="w-10 h-10" />
             <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              ImageCompress Pro
+              Neuronix A.I.
             </h1>
           </Link>
           
