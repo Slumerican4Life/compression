@@ -57,15 +57,7 @@ serve(async (req) => {
       customer_email: customerId ? undefined : user.email,
       line_items: [
         {
-          price_data: {
-            currency: "usd",
-            product_data: { 
-              name: "ImageCompress Pro Premium",
-              description: "Advanced compression features and batch processing"
-            },
-            unit_amount: 999, // $9.99 in cents
-            recurring: { interval: "month" },
-          },
+          price: "price_1RjJ1nEEqiDDPmsd7TIVGki7", // Your Stripe price ID for $9.99/month
           quantity: 1,
         },
       ],
