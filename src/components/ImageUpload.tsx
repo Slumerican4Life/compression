@@ -1,8 +1,11 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Download, Settings, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Slider } from '@/components/ui/slider';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { compressImage, downloadFile, downloadAllFiles } from '@/utils/imageCompression';
 
 interface UploadedFile {
   id: string;
@@ -11,9 +14,22 @@ interface UploadedFile {
   size: string;
 }
 
+interface CompressedFile {
+  id: string;
+  originalFile: File;
+  compressedFile: File;
+  originalSize: number;
+  compressedSize: number;
+  compressionRatio: number;
+  preview: string;
+}
+
 const ImageUpload = () => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
+  const [compressedFiles, setCompressedFiles] = useState<CompressedFile[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [quality, setQuality] = useState([0.8]);
   const { toast } = useToast();
 
   const formatFileSize = (bytes: number): string => {
@@ -27,17 +43,28 @@ const ImageUpload = () => {
   const validateAndProcessFiles = useCallback((files: FileList | File[]) => {
     const validFiles: File[] = [];
     const fileArray = Array.from(files);
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
 
     fileArray.forEach(file => {
-      if (file.type === 'image/jpeg' || file.type === 'image/jpg') {
-        validFiles.push(file);
-      } else {
+      if (file.type !== 'image/jpeg' && file.type !== 'image/jpg') {
         toast({
           title: "Invalid file type",
           description: `${file.name} is not a JPEG file. Only JPEG files are supported.`,
           variant: "destructive",
         });
+        return;
       }
+      
+      if (file.size > maxSize) {
+        toast({
+          title: "File too large",
+          description: `${file.name} is ${formatFileSize(file.size)}. Maximum size is 10MB.`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      validFiles.push(file);
     });
 
     validFiles.forEach(file => {
@@ -98,7 +125,7 @@ const ImageUpload = () => {
     setUploadedFiles(prev => prev.filter(file => file.id !== id));
   }, []);
 
-  const handleCompress = useCallback(() => {
+  const handleCompress = useCallback(async () => {
     if (uploadedFiles.length === 0) {
       toast({
         title: "No files to compress",
@@ -108,11 +135,47 @@ const ImageUpload = () => {
       return;
     }
 
-    toast({
-      title: "Compression started",
-      description: `Starting compression for ${uploadedFiles.length} image${uploadedFiles.length > 1 ? 's' : ''}...`,
-    });
-  }, [uploadedFiles.length, toast]);
+    setIsCompressing(true);
+    setCompressedFiles([]);
+
+    try {
+      const compressionPromises = uploadedFiles.map(async (uploadedFile) => {
+        const result = await compressImage(uploadedFile.file, {
+          quality: quality[0],
+          maxWidth: 1920,
+          maxHeight: 1080,
+        });
+
+        const compressedFile: CompressedFile = {
+          id: uploadedFile.id,
+          originalFile: uploadedFile.file,
+          compressedFile: result.compressedFile,
+          originalSize: result.originalSize,
+          compressedSize: result.compressedSize,
+          compressionRatio: result.compressionRatio,
+          preview: uploadedFile.preview,
+        };
+
+        return compressedFile;
+      });
+
+      const results = await Promise.all(compressionPromises);
+      setCompressedFiles(results);
+
+      toast({
+        title: "Compression completed",
+        description: `Successfully compressed ${results.length} image${results.length > 1 ? 's' : ''}.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Compression failed",
+        description: "Some images failed to compress. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCompressing(false);
+    }
+  }, [uploadedFiles, quality, toast]);
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6 space-y-8">
@@ -215,15 +278,123 @@ const ImageUpload = () => {
             ))}
           </div>
           
+          {/* Compression Settings */}
+          <Card className="p-6">
+            <div className="flex items-center gap-4 mb-4">
+              <Settings className="w-5 h-5 text-muted-foreground" />
+              <h3 className="text-lg font-semibold text-foreground">Compression Settings</h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="quality" className="text-sm font-medium">
+                  Quality: {Math.round(quality[0] * 100)}%
+                </Label>
+                <div className="mt-2">
+                  <Slider
+                    id="quality"
+                    min={0.1}
+                    max={1.0}
+                    step={0.1}
+                    value={quality}
+                    onValueChange={setQuality}
+                    className="w-full"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Higher quality = larger file size, Lower quality = smaller file size
+                </p>
+              </div>
+            </div>
+          </Card>
+
           {/* Compress Button */}
           <div className="flex justify-center pt-6">
             <Button 
               onClick={handleCompress}
+              disabled={isCompressing}
               size="lg"
               className="bg-gradient-primary hover:bg-primary-hover text-primary-foreground shadow-medium hover:shadow-large transition-all duration-300 px-8 py-3 text-lg font-semibold"
             >
-              Compress Images ({uploadedFiles.length})
+              {isCompressing ? (
+                <>
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                  Compressing...
+                </>
+              ) : (
+                `Compress Images (${uploadedFiles.length})`
+              )}
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Compressed Files Grid */}
+      {compressedFiles.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-semibold text-foreground">
+              Compressed Images ({compressedFiles.length})
+            </h2>
+            <Button 
+              onClick={() => downloadAllFiles(compressedFiles.map(f => f.compressedFile))}
+              variant="outline"
+              className="hover:bg-primary hover:text-primary-foreground"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Download All
+            </Button>
+          </div>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {compressedFiles.map((file, index) => (
+              <Card 
+                key={file.id} 
+                className="overflow-hidden shadow-soft hover:shadow-medium transition-all duration-300 animate-fade-in group"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="relative">
+                  <img
+                    src={file.preview}
+                    alt={file.originalFile.name}
+                    className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  <Button
+                    onClick={() => downloadFile(file.compressedFile)}
+                    className="absolute bottom-2 right-2 bg-primary text-primary-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-primary/90"
+                    size="sm"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="p-4 space-y-2">
+                  <h4 className="font-medium text-sm text-foreground truncate" title={file.originalFile.name}>
+                    {file.compressedFile.name}
+                  </h4>
+                  
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Original:</span>
+                      <span>{formatFileSize(file.originalSize)}</span>
+                    </div>
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Compressed:</span>
+                      <span>{formatFileSize(file.compressedSize)}</span>
+                    </div>
+                    <div className="flex justify-between font-medium">
+                      <span className="text-foreground">Saved:</span>
+                      <span className="text-green-600">
+                        {file.compressionRatio.toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
           </div>
         </div>
       )}
