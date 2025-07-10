@@ -5,10 +5,11 @@ import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { downloadAllFiles } from '@/utils/imageCompression';
 import { useCompressionQueue } from '@/hooks/useCompressionQueue';
 import QueueManager from '@/components/QueueManager';
 import ImageComparison from '@/components/ImageComparison';
+import CompletedImagesGrid from '@/components/CompletedImagesGrid';
+import AdSenseAd from '@/components/AdSenseAd';
 
 const ImageUpload = () => {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -27,6 +28,8 @@ const ImageUpload = () => {
     clearQueue,
     retryFailed,
     getQueueStats,
+    autoProcess,
+    setAutoProcess,
   } = useCompressionQueue();
 
   const formatFileSize = (bytes: number): string => {
@@ -117,6 +120,13 @@ const ImageUpload = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto p-6 space-y-8">
+      {/* Top AdSense Ad */}
+      <AdSenseAd 
+        slot="top-banner" 
+        format="horizontal" 
+        className="max-w-4xl mx-auto"
+      />
+
       {/* Upload Area */}
       <Card 
         className={`
@@ -170,6 +180,20 @@ const ImageUpload = () => {
         </div>
       </Card>
 
+      {/* Side AdSense Ads */}
+      {queue.length === 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <AdSenseAd 
+            slot="left-sidebar" 
+            format="rectangle" 
+          />
+          <AdSenseAd 
+            slot="right-sidebar" 
+            format="rectangle" 
+          />
+        </div>
+      )}
+
       {/* Queue Management */}
       {queue.length > 0 && (
         <>
@@ -178,6 +202,15 @@ const ImageUpload = () => {
             <div className="flex items-center gap-4 mb-4">
               <Settings className="w-5 h-5 text-muted-foreground" />
               <h3 className="text-lg font-semibold text-foreground">Compression Settings</h3>
+              <div className="ml-auto flex items-center gap-2">
+                <label className="text-sm text-muted-foreground">Auto-process:</label>
+                <input
+                  type="checkbox"
+                  checked={autoProcess}
+                  onChange={(e) => setAutoProcess(e.target.checked)}
+                  className="rounded"
+                />
+              </div>
             </div>
             
             <div className="flex items-center gap-6">
@@ -235,79 +268,17 @@ const ImageUpload = () => {
         </>
       )}
 
-      {/* Completed Images with Download All */}
-      {completedItems.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-semibold text-foreground">
-              Compressed Images ({completedItems.length})
-            </h2>
-            <Button 
-              onClick={() => downloadAllFiles(completedItems.map(item => item.result!.compressedFile))}
-              variant="outline"
-              className="hover:bg-primary hover:text-primary-foreground"
-            >
-              Download All
-            </Button>
-          </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {completedItems.map((item, index) => (
-              <Card 
-                key={item.id} 
-                className="overflow-hidden shadow-soft hover:shadow-medium transition-all duration-300 animate-fade-in group"
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="relative">
-                  <img
-                    src={item.preview}
-                    alt={item.file.name}
-                    className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-105"
-                  />
-                  
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  
-                  <Button
-                    onClick={() => setSelectedComparison(item.id)}
-                    className="absolute bottom-2 right-2 bg-primary text-primary-foreground rounded-full p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-primary/90"
-                    size="sm"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                </div>
-                
-                <div className="p-4 space-y-2">
-                  <h4 className="font-medium text-sm text-foreground truncate" title={item.file.name}>
-                    {item.result!.compressedFile.name}
-                  </h4>
-                  
-                  <div className="space-y-1 text-xs">
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Original:</span>
-                      <span>{formatFileSize(item.result!.originalSize)}</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Compressed:</span>
-                      <span>{formatFileSize(item.result!.compressedSize)}</span>
-                    </div>
-                    <div className="flex justify-between font-medium">
-                      <span className="text-foreground">Saved:</span>
-                      <span className="text-green-600">
-                        {item.result!.compressionRatio.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Completed Images Grid */}
+      <CompletedImagesGrid
+        completedItems={completedItems}
+        onRemoveItem={removeFromQueue}
+        onCompareImage={setSelectedComparison}
+      />
 
       {/* Image Comparison Modal */}
       {selectedComparison && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-background border rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+          <div className="bg-background border rounded-lg max-w-6xl w-full max-h-[95vh] overflow-auto shadow-2xl">
             {(() => {
               const item = completedItems.find(item => item.id === selectedComparison);
               if (!item || !item.result) return null;

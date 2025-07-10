@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { compressImage } from '@/utils/imageCompression';
 import { useToast } from '@/hooks/use-toast';
 
@@ -27,7 +27,10 @@ export const useCompressionQueue = () => {
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [overallProgress, setOverallProgress] = useState(0);
+  const [autoProcess, setAutoProcess] = useState(false);
   const { toast } = useToast();
+
+  const processQueueRef = useRef<((options: CompressionOptions) => Promise<void>) | null>(null);
 
   const addToQueue = useCallback((files: File[]) => {
     const newItems: QueueItem[] = files.map(file => ({
@@ -39,6 +42,7 @@ export const useCompressionQueue = () => {
     }));
 
     setQueue(prev => [...prev, ...newItems]);
+    
     return newItems;
   }, []);
 
@@ -139,6 +143,11 @@ export const useCompressionQueue = () => {
     });
   }, [queue, toast]);
 
+  // Store processQueue ref for auto-processing
+  useEffect(() => {
+    processQueueRef.current = processQueue;
+  }, [processQueue]);
+
   const clearQueue = useCallback(() => {
     setQueue([]);
     setOverallProgress(0);
@@ -179,5 +188,7 @@ export const useCompressionQueue = () => {
     clearQueue,
     retryFailed,
     getQueueStats,
+    autoProcess,
+    setAutoProcess,
   };
 };
