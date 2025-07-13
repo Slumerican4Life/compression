@@ -41,25 +41,34 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          backup_codes: string[] | null
           created_at: string
           display_name: string | null
           id: string
+          two_factor_enabled: boolean | null
+          two_factor_secret: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           avatar_url?: string | null
+          backup_codes?: string[] | null
           created_at?: string
           display_name?: string | null
           id?: string
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           avatar_url?: string | null
+          backup_codes?: string[] | null
           created_at?: string
           display_name?: string | null
           id?: string
+          two_factor_enabled?: boolean | null
+          two_factor_secret?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -77,6 +86,8 @@ export type Database = {
           subscribed: boolean
           subscription_end: string | null
           subscription_tier: string | null
+          trial_end: string | null
+          trial_start: string | null
           updated_at: string
           user_id: string | null
         }
@@ -91,6 +102,8 @@ export type Database = {
           subscribed?: boolean
           subscription_end?: string | null
           subscription_tier?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -105,6 +118,8 @@ export type Database = {
           subscribed?: boolean
           subscription_end?: string | null
           subscription_tier?: string | null
+          trial_end?: string | null
+          trial_start?: string | null
           updated_at?: string
           user_id?: string | null
         }
@@ -115,6 +130,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      has_premium_access: {
+        Args: { user_email: string }
+        Returns: boolean
+      }
       is_admin: {
         Args: { user_email: string }
         Returns: boolean

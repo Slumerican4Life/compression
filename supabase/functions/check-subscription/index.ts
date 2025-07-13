@@ -46,18 +46,45 @@ serve(async (req) => {
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
     
+    // Check for existing subscriber record (including trial)
+    const { data: existingSubscriber } = await supabaseClient
+      .from("subscribers")
+      .select("*")
+      .eq("email", user.email)
+      .single();
+
     if (customers.data.length === 0) {
-      logStep("No customer found, updating unsubscribed state");
-      await supabaseClient.from("subscribers").upsert({
-        email: user.email,
-        user_id: user.id,
-        stripe_customer_id: null,
-        subscribed: false,
-        subscription_tier: null,
-        subscription_end: null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'email' });
-      return new Response(JSON.stringify({ subscribed: false }), {
+      logStep("No Stripe customer found, checking trial status");
+      
+      // Check if user has an active trial or is gifted
+      let hasPremiumAccess = false;
+      let subscriptionTier = null;
+      let subscriptionEnd = null;
+      
+      if (existingSubscriber) {
+        const now = new Date();
+        const isTrialActive = existingSubscriber.trial_end && new Date(existingSubscriber.trial_end) > now;
+        const isGiftedActive = existingSubscriber.is_gifted && existingSubscriber.subscription_end && new Date(existingSubscriber.subscription_end) > now;
+        
+        if (isTrialActive) {
+          hasPremiumAccess = true;
+          subscriptionTier = "Trial";
+          subscriptionEnd = existingSubscriber.trial_end;
+          logStep("User has active trial", { trialEnd: subscriptionEnd });
+        } else if (isGiftedActive) {
+          hasPremiumAccess = true;
+          subscriptionTier = "Gifted";
+          subscriptionEnd = existingSubscriber.subscription_end;
+          logStep("User has gifted subscription", { giftEnd: subscriptionEnd });
+        }
+      }
+      
+      return new Response(JSON.stringify({ 
+        subscribed: hasPremiumAccess,
+        subscription_tier: subscriptionTier,
+        subscription_end: subscriptionEnd,
+        is_trial: subscriptionTier === "Trial"
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
       });
@@ -109,7 +136,8 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       subscribed: hasActiveSub,
       subscription_tier: subscriptionTier,
-      subscription_end: subscriptionEnd
+      subscription_end: subscriptionEnd,
+      is_trial: false
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

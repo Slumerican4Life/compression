@@ -8,10 +8,14 @@ interface AuthContextType {
   subscribed: boolean;
   subscriptionTier: string | null;
   subscriptionEnd: string | null;
+  isTrial: boolean;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   checkSubscription: () => Promise<void>;
+  setupTwoFactor: () => Promise<{ secret: string; qrCode: string }>;
+  enableTwoFactor: (token: string, secret: string) => Promise<{ error: any }>;
+  verifyTwoFactor: (token: string) => Promise<{ error: any }>;
   loading: boolean;
 }
 
@@ -23,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [subscribed, setSubscribed] = useState(false);
   const [subscriptionTier, setSubscriptionTier] = useState<string | null>(null);
   const [subscriptionEnd, setSubscriptionEnd] = useState<string | null>(null);
+  const [isTrial, setIsTrial] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const checkSubscription = async () => {
@@ -34,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSubscribed(data.subscribed || false);
         setSubscriptionTier(data.subscription_tier || null);
         setSubscriptionEnd(data.subscription_end || null);
+        setIsTrial(data.is_trial || false);
       }
     } catch (error) {
       console.error('Error checking subscription:', error);
@@ -56,6 +62,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setSubscribed(false);
           setSubscriptionTier(null);
           setSubscriptionEnd(null);
+          setIsTrial(false);
         }
         setLoading(false);
       }
@@ -97,6 +104,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await supabase.auth.signOut();
   };
 
+  const setupTwoFactor = async () => {
+    const { data, error } = await supabase.functions.invoke('setup-2fa');
+    if (error) throw error;
+    return data;
+  };
+
+  const enableTwoFactor = async (token: string, secret: string) => {
+    const { error } = await supabase.functions.invoke('enable-2fa', {
+      body: { token, secret }
+    });
+    return { error };
+  };
+
+  const verifyTwoFactor = async (token: string) => {
+    const { error } = await supabase.functions.invoke('verify-2fa', {
+      body: { token }
+    });
+    return { error };
+  };
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -104,10 +131,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscribed,
       subscriptionTier,
       subscriptionEnd,
+      isTrial,
       signUp,
       signIn,
       signOut,
       checkSubscription,
+      setupTwoFactor,
+      enableTwoFactor,
+      verifyTwoFactor,
       loading
     }}>
       {children}

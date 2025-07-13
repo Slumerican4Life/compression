@@ -9,7 +9,7 @@ import { Loader2, Check, Crown, Zap, Star, Sparkles } from 'lucide-react';
 import Header from '@/components/Header';
 
 const Subscription = () => {
-  const { user, subscribed, subscriptionTier, subscriptionEnd, checkSubscription } = useAuth();
+  const { user, subscribed, subscriptionTier, subscriptionEnd, isTrial, checkSubscription } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -176,10 +176,12 @@ const Subscription = () => {
                 {subscribed ? (
                   <div className="space-y-3 mt-6">
                     <div className="text-sm text-muted-foreground">
-                      <div>Status: <Badge variant="default">Active</Badge></div>
+                      <div>Status: <Badge variant={isTrial ? "secondary" : "default"}>
+                        {isTrial ? "7-Day Trial" : "Active"}
+                      </Badge></div>
                       {subscriptionTier && <div>Tier: {subscriptionTier}</div>}
                       {subscriptionEnd && (
-                        <div>Renews: {new Date(subscriptionEnd).toLocaleDateString()}</div>
+                        <div>{isTrial ? "Trial ends" : "Renews"}: {new Date(subscriptionEnd).toLocaleDateString()}</div>
                       )}
                     </div>
                     <div className="flex gap-2">

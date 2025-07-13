@@ -19,7 +19,7 @@ const ImageUpload = () => {
   const [selectedComparison, setSelectedComparison] = useState<string | null>(null);
   const [showAdmin, setShowAdmin] = useState(false);
   const { toast } = useToast();
-  const { user, subscribed } = useAuth();
+  const { user, subscribed, isTrial } = useAuth();
   
   // Use the new queue management hook
   const {
@@ -73,7 +73,7 @@ const ImageUpload = () => {
 
     if (validFiles.length > 0) {
       try {
-        addToQueue(validFiles, subscribed);
+        addToQueue(validFiles, subscribed, isTrial);
         toast({
           title: "Files added to queue",
           description: `${validFiles.length} JPEG file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
@@ -164,7 +164,7 @@ const ImageUpload = () => {
       )}
 
       {/* Subscription Advertisement */}
-      {!subscribed && (
+      {!subscribed && !isTrial && (
         <Card className="border-primary bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10">
           <div className="p-6 text-center">
             <div className="flex items-center justify-center mb-4">
@@ -191,7 +191,7 @@ const ImageUpload = () => {
       )}
 
       {/* Usage Indicator for Free Users */}
-      {!subscribed && (
+      {!subscribed && !isTrial && (
         <Card className="p-4 bg-muted/30">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">

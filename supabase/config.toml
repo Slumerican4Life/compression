@@ -54,3 +54,12 @@ enabled = true
 
 [functions.gift-subscription]
 verify_jwt = true
+
+[functions.setup-2fa]
+verify_jwt = true
+
+[functions.enable-2fa]
+verify_jwt = true
+
+[functions.verify-2fa]
+verify_jwt = true
