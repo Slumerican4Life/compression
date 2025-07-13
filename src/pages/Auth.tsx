@@ -68,7 +68,11 @@ const Auth = () => {
     const { error } = await signUp(signUpData.email, signUpData.password, signUpData.displayName);
     
     if (error) {
-      setError(error.message);
+      if (error.message?.includes('already registered') || error.message?.includes('User already registered')) {
+        setError('This email is already registered. Please try signing in instead.');
+      } else {
+        setError(error.message);
+      }
     } else {
       setSuccess('Check your email for verification link!');
     }

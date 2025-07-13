@@ -81,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (email: string, password: string, displayName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -89,6 +89,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         data: displayName ? { display_name: displayName } : {}
       }
     });
+    
+    // Check if user already exists (Supabase returns user data but no error for existing users)
+    if (!error && data.user && !data.session) {
+      // If we get a user but no session, it means the user already exists
+      const existingUser = await supabase.auth.getUser();
+      if (data.user.email_confirmed_at) {
+        return { error: { message: 'This email is already registered. Please try signing in instead.' } };
+      }
+    }
+    
     return { error };
   };
 
