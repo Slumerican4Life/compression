@@ -216,11 +216,24 @@ const QueueManager: React.FC<QueueManagerProps> = ({
 
               {/* File Preview */}
               <div className="relative">
-                <img
-                  src={item.preview}
-                  alt={item.file.name}
-                  className="w-16 h-16 object-cover rounded border"
-                />
+                {item.preview ? (
+                  <img
+                    src={item.preview}
+                    alt={item.file.name}
+                    className="w-16 h-16 object-cover rounded border"
+                    onError={(e) => {
+                      console.error('Image failed to load:', item.preview, e);
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    onLoad={() => {
+                      console.log('Image loaded successfully:', item.file.name);
+                    }}
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-muted rounded border flex items-center justify-center">
+                    <span className="text-xs text-muted-foreground">No preview</span>
+                  </div>
+                )}
                 <div className="absolute -top-1 -right-1">
                   {getStatusIcon(item.status)}
                 </div>
