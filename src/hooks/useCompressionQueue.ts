@@ -8,6 +8,7 @@ export interface QueueItem {
   preview: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   progress: number;
+  selected: boolean;
   result?: {
     compressedFile: File;
     originalSize: number;
@@ -21,6 +22,7 @@ export interface CompressionOptions {
   quality: number;
   maxWidth?: number;
   maxHeight?: number;
+  outputFormat?: 'jpeg' | 'png' | 'webp';
 }
 
 export const useCompressionQueue = () => {
@@ -53,6 +55,7 @@ export const useCompressionQueue = () => {
       preview: URL.createObjectURL(file),
       status: 'pending',
       progress: 0,
+      selected: false,
     }));
 
     setQueue(prev => [...prev, ...newItems]);
@@ -183,13 +186,24 @@ export const useCompressionQueue = () => {
     await processQueue(options);
   }, [queue, processQueue]);
 
+  const toggleSelection = useCallback((id: string) => {
+    setQueue(prev => prev.map(item => 
+      item.id === id ? { ...item, selected: !item.selected } : item
+    ));
+  }, []);
+
+  const selectAll = useCallback((select: boolean) => {
+    setQueue(prev => prev.map(item => ({ ...item, selected: select })));
+  }, []);
+
   const getQueueStats = useCallback(() => {
     const pending = queue.filter(item => item.status === 'pending').length;
     const processing = queue.filter(item => item.status === 'processing').length;
     const completed = queue.filter(item => item.status === 'completed').length;
     const failed = queue.filter(item => item.status === 'failed').length;
+    const selected = queue.filter(item => item.selected).length;
     
-    return { pending, processing, completed, failed, total: queue.length };
+    return { pending, processing, completed, failed, selected, total: queue.length };
   }, [queue]);
 
   return {
@@ -202,6 +216,8 @@ export const useCompressionQueue = () => {
     clearQueue,
     retryFailed,
     getQueueStats,
+    toggleSelection,
+    selectAll,
     autoProcess,
     setAutoProcess,
   };

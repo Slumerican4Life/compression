@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, Settings, Loader2, Eye, Crown } from 'lucide-react';
+import { Upload, Settings, Loader2, Eye, Crown, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
@@ -32,6 +32,8 @@ const ImageUpload = () => {
     clearQueue,
     retryFailed,
     getQueueStats,
+    toggleSelection,
+    selectAll,
     autoProcess,
     setAutoProcess,
   } = useCompressionQueue();
@@ -50,10 +52,10 @@ const ImageUpload = () => {
     const maxSize = 10 * 1024 * 1024; // 10MB in bytes
 
     fileArray.forEach(file => {
-      if (file.type !== 'image/jpeg' && file.type !== 'image/jpg') {
+      if (!file.type.startsWith('image/')) {
         toast({
           title: "Invalid file type",
-          description: `${file.name} is not a JPEG file. Only JPEG files are supported.`,
+          description: `${file.name} is not an image file. All image formats are supported.`,
           variant: "destructive",
         });
         return;
@@ -76,7 +78,7 @@ const ImageUpload = () => {
         addToQueue(validFiles, subscribed, isTrial);
         toast({
           title: "Files added to queue",
-          description: `${validFiles.length} JPEG file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
+          description: `${validFiles.length} image file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
         });
       } catch (error: any) {
         toast({
@@ -86,7 +88,7 @@ const ImageUpload = () => {
         });
       }
     }
-  }, [toast, addToQueue, subscribed]);
+  }, [toast, addToQueue, subscribed, isTrial]);
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -246,21 +248,21 @@ const ImageUpload = () => {
           </div>
           
           <h3 className="text-xl font-semibold mb-2 text-foreground">
-            {isDragActive ? 'Drop your images here' : 'Upload your JPEG images'}
+            {isDragActive ? 'Drop your images here' : 'Upload your images'}
           </h3>
           
           <p className="text-muted-foreground mb-6">
-            Drag and drop your JPEG files here, or click to browse
+            Drag and drop your image files here, or click to browse. All image formats supported.
           </p>
           
-          <input
-            type="file"
-            multiple
-            accept="image/jpeg,image/jpg"
-            onChange={handleFileInput}
-            className="hidden"
-            id="file-upload"
-          />
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileInput}
+                className="hidden"
+                id="file-upload"
+              />
           
           <Button 
             variant="outline" 
@@ -326,21 +328,39 @@ const ImageUpload = () => {
                 </p>
               </div>
               
-              <Button 
-                onClick={handleStartCompression}
-                disabled={isProcessing || queueStats.pending === 0}
-                size="lg"
-                className="bg-gradient-primary hover:bg-primary-hover text-primary-foreground shadow-medium hover:shadow-large transition-all duration-300 px-8 py-3"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Processing Queue...
-                  </>
-                ) : (
-                  `Start Compression (${queueStats.pending})`
+              <div className="flex gap-3">
+                <Button 
+                  onClick={handleStartCompression}
+                  disabled={isProcessing || queueStats.pending === 0}
+                  size="lg"
+                  className="bg-gradient-primary hover:bg-primary-hover text-primary-foreground shadow-medium hover:shadow-large transition-all duration-300 px-6 py-3"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    `Compress (${queueStats.pending})`
+                  )}
+                </Button>
+                
+                {queueStats.pending > 1 && (
+                  <Button 
+                    onClick={() => {
+                      selectAll(true);
+                      handleStartCompression();
+                    }}
+                    disabled={isProcessing}
+                    variant="outline"
+                    size="lg"
+                    className="px-6 py-3"
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Compress All
+                  </Button>
                 )}
-              </Button>
+              </div>
             </div>
           </Card>
 
@@ -355,6 +375,8 @@ const ImageUpload = () => {
               maxHeight: 1080,
             })}
             onClearQueue={clearQueue}
+            onToggleSelection={toggleSelection}
+            onSelectAll={selectAll}
             queueStats={queueStats}
           />
         </>

@@ -1,10 +1,12 @@
 import React from 'react';
-import { CheckCircle, XCircle, Clock, Loader2, RotateCcw, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Loader2, RotateCcw, Trash2, Download, CheckSquare, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { QueueItem } from '@/hooks/useCompressionQueue';
+import { downloadFile, downloadSelectedFiles } from '@/utils/imageCompression';
 
 interface QueueManagerProps {
   queue: QueueItem[];
@@ -13,11 +15,14 @@ interface QueueManagerProps {
   onRemoveItem: (id: string) => void;
   onRetryFailed: () => void;
   onClearQueue: () => void;
+  onToggleSelection: (id: string) => void;
+  onSelectAll: (select: boolean) => void;
   queueStats: {
     pending: number;
     processing: number;
     completed: number;
     failed: number;
+    selected: number;
     total: number;
   };
 }
@@ -29,6 +34,8 @@ const QueueManager: React.FC<QueueManagerProps> = ({
   onRemoveItem,
   onRetryFailed,
   onClearQueue,
+  onToggleSelection,
+  onSelectAll,
   queueStats,
 }) => {
   const formatFileSize = (bytes: number): string => {
@@ -74,6 +81,19 @@ const QueueManager: React.FC<QueueManagerProps> = ({
     );
   };
 
+  const completedItems = queue.filter(item => item.status === 'completed' && item.result);
+  const selectedCompletedItems = completedItems.filter(item => item.selected);
+
+  const handleDownloadSelected = () => {
+    const filesToDownload = selectedCompletedItems.map(item => item.result!.compressedFile);
+    downloadSelectedFiles(filesToDownload);
+  };
+
+  const handleDownloadAll = () => {
+    const filesToDownload = completedItems.map(item => item.result!.compressedFile);
+    downloadSelectedFiles(filesToDownload);
+  };
+
   if (queue.length === 0) {
     return null;
   }
@@ -83,10 +103,41 @@ const QueueManager: React.FC<QueueManagerProps> = ({
       {/* Queue Summary */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">
-            Compression Queue ({queueStats.total} files)
-          </h3>
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-semibold text-foreground">
+              Compression Queue ({queueStats.total} files)
+            </h3>
+            {completedItems.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={completedItems.length > 0 && completedItems.every(item => item.selected)}
+                  onCheckedChange={(checked) => onSelectAll(!!checked)}
+                />
+                <span className="text-sm text-muted-foreground">Select All Completed</span>
+              </div>
+            )}
+          </div>
           <div className="flex gap-2">
+            {selectedCompletedItems.length > 0 && (
+              <Button
+                onClick={handleDownloadSelected}
+                variant="default"
+                size="sm"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Selected ({selectedCompletedItems.length})
+              </Button>
+            )}
+            {completedItems.length > 0 && (
+              <Button
+                onClick={handleDownloadAll}
+                variant="outline"
+                size="sm"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download All Compressed ({completedItems.length})
+              </Button>
+            )}
             {queueStats.failed > 0 && (
               <Button
                 onClick={onRetryFailed}
@@ -111,7 +162,7 @@ const QueueManager: React.FC<QueueManagerProps> = ({
         </div>
 
         {/* Queue Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-muted-foreground">{queueStats.pending}</div>
             <div className="text-sm text-muted-foreground">Pending</div>
@@ -127,6 +178,10 @@ const QueueManager: React.FC<QueueManagerProps> = ({
           <div className="text-center">
             <div className="text-2xl font-bold text-destructive">{queueStats.failed}</div>
             <div className="text-sm text-muted-foreground">Failed</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{queueStats.selected}</div>
+            <div className="text-sm text-muted-foreground">Selected</div>
           </div>
         </div>
 
@@ -151,6 +206,14 @@ const QueueManager: React.FC<QueueManagerProps> = ({
             style={{ animationDelay: `${index * 50}ms` }}
           >
             <div className="flex items-center gap-4">
+              {/* Selection Checkbox */}
+              {item.status === 'completed' && item.result && (
+                <Checkbox
+                  checked={item.selected}
+                  onCheckedChange={() => onToggleSelection(item.id)}
+                />
+              )}
+
               {/* File Preview */}
               <div className="relative">
                 <img
@@ -199,6 +262,15 @@ const QueueManager: React.FC<QueueManagerProps> = ({
 
               {/* Actions */}
               <div className="flex items-center gap-2">
+                {item.status === 'completed' && item.result && (
+                  <Button
+                    onClick={() => downloadFile(item.result!.compressedFile)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                )}
                 <Button
                   onClick={() => onRemoveItem(item.id)}
                   variant="ghost"
