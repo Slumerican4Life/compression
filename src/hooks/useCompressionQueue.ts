@@ -49,14 +49,19 @@ export const useCompressionQueue = () => {
       throw new Error(`Free users can only compress 3 images total. You can add ${remainingSlots} more image${remainingSlots !== 1 ? 's' : ''}.`);
     }
 
-    const newItems: QueueItem[] = filesToAdd.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file,
-      preview: URL.createObjectURL(file),
-      status: 'pending',
-      progress: 0,
-      selected: false,
-    }));
+    const newItems: QueueItem[] = filesToAdd.map(file => {
+      console.log('Adding file to queue:', file.name, file.type, file.size);
+      const preview = URL.createObjectURL(file);
+      console.log('Generated preview URL:', preview);
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        preview,
+        status: 'pending',
+        progress: 0,
+        selected: false,
+      };
+    });
 
     setQueue(prev => [...prev, ...newItems]);
     

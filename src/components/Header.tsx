@@ -25,7 +25,7 @@ const Header = () => {
           <Link to="/" className="flex items-center space-x-3">
             <img src={neuronixLogo} alt="Neuronix Brain" className="w-10 h-10" />
             <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Neuronix A.I.
+              Neuronix A.I. Image Compression
             </h1>
           </Link>
           
