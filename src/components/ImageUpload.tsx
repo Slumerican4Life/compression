@@ -258,7 +258,7 @@ const ImageUpload = () => {
               <input
                 type="file"
                 multiple
-                accept="image/*"
+                accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.tif,.svg"
                 onChange={handleFileInput}
                 className="hidden"
                 id="file-upload"
