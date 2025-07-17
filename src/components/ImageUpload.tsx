@@ -47,12 +47,18 @@ const ImageUpload = () => {
   };
 
   const validateAndProcessFiles = useCallback((files: FileList | File[]) => {
+    console.log('validateAndProcessFiles called with:', files);
     const validFiles: File[] = [];
     const fileArray = Array.from(files);
     const maxSize = 10 * 1024 * 1024; // 10MB in bytes
 
+    console.log('Processing', fileArray.length, 'files');
+
     fileArray.forEach(file => {
+      console.log('Validating file:', file.name, file.type, file.size);
+      
       if (!file.type.startsWith('image/')) {
+        console.log('File rejected - not an image:', file.name, file.type);
         toast({
           title: "Invalid file type",
           description: `${file.name} is not an image file. All image formats are supported.`,
@@ -62,6 +68,7 @@ const ImageUpload = () => {
       }
       
       if (file.size > maxSize) {
+        console.log('File rejected - too large:', file.name, file.size);
         toast({
           title: "File too large",
           description: `${file.name} is ${formatFileSize(file.size)}. Maximum size is 10MB.`,
@@ -70,23 +77,31 @@ const ImageUpload = () => {
         return;
       }
       
+      console.log('File accepted:', file.name);
       validFiles.push(file);
     });
 
+    console.log('Valid files:', validFiles.length);
+
     if (validFiles.length > 0) {
       try {
-        addToQueue(validFiles, subscribed, isTrial);
+        console.log('Adding to queue with subscribed:', subscribed, 'isTrial:', isTrial);
+        const addedItems = addToQueue(validFiles, subscribed, isTrial);
+        console.log('Files added to queue:', addedItems);
         toast({
           title: "Files added to queue",
           description: `${validFiles.length} image file${validFiles.length > 1 ? 's' : ''} added to compression queue.`,
         });
       } catch (error: any) {
+        console.error('Error adding to queue:', error);
         toast({
           title: "Queue limit reached",
           description: error.message,
           variant: "destructive",
         });
       }
+    } else {
+      console.log('No valid files to add');
     }
   }, [toast, addToQueue, subscribed, isTrial]);
 
@@ -116,8 +131,13 @@ const ImageUpload = () => {
   }, []);
 
   const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    console.log('File input triggered');
+    console.log('Files selected:', e.target.files);
     if (e.target.files && e.target.files.length > 0) {
+      console.log('Processing files:', Array.from(e.target.files).map(f => ({ name: f.name, type: f.type, size: f.size })));
       validateAndProcessFiles(e.target.files);
+    } else {
+      console.log('No files selected');
     }
   }, [validateAndProcessFiles]);
 
