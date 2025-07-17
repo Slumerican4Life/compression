@@ -272,22 +272,31 @@ const ImageUpload = () => {
           </h3>
           
           <p className="text-muted-foreground mb-6">
-            Drag and drop your image files here, or click to browse. All image formats supported.
+            Drag and drop your image files here, or click to browse. All image formats supported (JPEG, PNG, GIF, WebP, BMP, TIFF, SVG).
           </p>
           
-              <input
-                type="file"
-                multiple
-                accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.tiff,.tif,.svg"
-                onChange={handleFileInput}
-                className="hidden"
-                id="file-upload"
-              />
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            onChange={handleFileInput}
+            className="hidden"
+            id="file-upload"
+          />
           
           <Button 
             variant="outline" 
             className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-            onClick={() => document.getElementById('file-upload')?.click()}
+            onClick={(e) => {
+              e.preventDefault();
+              console.log('Choose Files button clicked');
+              const fileInput = document.getElementById('file-upload') as HTMLInputElement;
+              console.log('File input element:', fileInput);
+              if (fileInput) {
+                fileInput.click();
+                console.log('File input clicked');
+              }
+            }}
           >
             Choose Files
           </Button>
