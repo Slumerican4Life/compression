@@ -282,19 +282,30 @@ const ImageUpload = () => {
             onChange={handleFileInput}
             className="hidden"
             id="file-upload"
+            ref={(input) => {
+              if (input) {
+                console.log('File input ref set:', input);
+              }
+            }}
           />
           
           <Button 
             variant="outline" 
             className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-            onClick={(e) => {
-              e.preventDefault();
+            onClick={() => {
               console.log('Choose Files button clicked');
               const fileInput = document.getElementById('file-upload') as HTMLInputElement;
               console.log('File input element:', fileInput);
+              console.log('File input properties:', {
+                accept: fileInput?.accept,
+                multiple: fileInput?.multiple,
+                type: fileInput?.type
+              });
               if (fileInput) {
                 fileInput.click();
                 console.log('File input clicked');
+              } else {
+                console.error('File input not found!');
               }
             }}
           >
