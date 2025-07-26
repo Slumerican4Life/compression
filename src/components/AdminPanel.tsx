@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Gift, Users, Crown, Settings } from 'lucide-react';
+import { Search, Gift, Users, Crown, Settings, Filter } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -33,6 +33,7 @@ const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [membershipFilter, setMembershipFilter] = useState<'all' | 'members' | 'trial' | 'free'>('all');
   const [giftMonths, setGiftMonths] = useState(1);
   const [giftMessage, setGiftMessage] = useState('');
   const [giftLoading, setGiftLoading] = useState(false);
@@ -147,11 +148,28 @@ const AdminPanel = () => {
     setGiftLoading(false);
   };
 
-  const filteredUsers = users.filter(user =>
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.display_name && user.display_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (user.phone_number && user.phone_number.includes(searchTerm))
-  );
+  const filteredUsers = users.filter(user => {
+    // Search filter
+    const matchesSearch = user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.display_name && user.display_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.phone_number && user.phone_number.includes(searchTerm));
+    
+    // Membership filter
+    const matchesMembership = (() => {
+      switch (membershipFilter) {
+        case 'members':
+          return user.subscribed;
+        case 'trial':
+          return !user.subscribed && user.trial_end && new Date(user.trial_end) > new Date();
+        case 'free':
+          return !user.subscribed && (!user.trial_end || new Date(user.trial_end) <= new Date());
+        default:
+          return true;
+      }
+    })();
+    
+    return matchesSearch && matchesMembership;
+  });
 
   if (loading) {
     return <div className="flex items-center justify-center p-8">Loading...</div>;
@@ -201,63 +219,94 @@ const AdminPanel = () => {
                 />
               </div>
             </div>
+            <div className="flex items-center gap-2">
+              <Filter className="w-4 h-4" />
+              <select
+                value={membershipFilter}
+                onChange={(e) => setMembershipFilter(e.target.value as any)}
+                className="px-3 py-2 border rounded-md text-sm"
+              >
+                <option value="all">All Users ({users.length})</option>
+                <option value="members">Members ({users.filter(u => u.subscribed).length})</option>
+                <option value="trial">Trial ({users.filter(u => !u.subscribed && u.trial_end && new Date(u.trial_end) > new Date()).length})</option>
+                <option value="free">Free ({users.filter(u => !u.subscribed && (!u.trial_end || new Date(u.trial_end) <= new Date())).length})</option>
+              </select>
+            </div>
             <Button onClick={loadUsers} variant="outline">
               Refresh
             </Button>
           </div>
 
-          <div className="space-y-2 max-h-96 overflow-auto">
-            {filteredUsers.map((userData) => (
-              <div
-                key={userData.email}
-                className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                  selectedUser?.email === userData.email
-                    ? 'border-primary bg-primary/5'
-                    : 'hover:bg-muted/50'
-                }`}
-                onClick={() => setSelectedUser(userData)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="font-medium">{userData.email}</div>
-                    {userData.display_name && (
-                      <div className="text-sm text-muted-foreground">
-                        Name: {userData.display_name}
+          <div className="space-y-2 h-96 overflow-auto border rounded-lg p-2 bg-muted/20">
+            {filteredUsers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                No users found matching your search criteria
+              </div>
+            ) : (
+              filteredUsers.map((userData) => (
+                <div
+                  key={userData.email}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors bg-background ${
+                    selectedUser?.email === userData.email
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:bg-muted/50'
+                  }`}
+                  onClick={() => setSelectedUser(userData)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="font-medium">{userData.email}</div>
+                      {userData.display_name && (
+                        <div className="text-sm text-muted-foreground">
+                          👤 {userData.display_name}
+                        </div>
+                      )}
+                      {userData.phone_number && (
+                        <div className="text-sm text-muted-foreground">
+                          📱 {userData.phone_number}
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        📅 Joined: {new Date(userData.created_at).toLocaleDateString()}
                       </div>
-                    )}
-                    {userData.phone_number && (
-                      <div className="text-sm text-muted-foreground">
-                        Phone: {userData.phone_number}
-                      </div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      Joined: {new Date(userData.created_at).toLocaleDateString()}
+                      {userData.is_gifted && userData.gifted_by && (
+                        <div className="text-xs text-muted-foreground">
+                          🎁 Gifted by: {userData.gifted_by}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      {userData.subscribed ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default" className="bg-green-600">
+                            💎 {userData.subscription_tier || 'Premium'} 
+                            {userData.is_gifted && ' (Gift)'}
+                          </Badge>
+                        </div>
+                      ) : userData.trial_end && new Date(userData.trial_end) > new Date() ? (
+                        <Badge variant="outline" className="border-blue-500 text-blue-600">
+                          🆓 Trial Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary">
+                          🚫 Free User
+                        </Badge>
+                      )}
+                      {userData.subscription_end && (
+                        <div className="text-xs text-muted-foreground">
+                          ⏰ Expires: {new Date(userData.subscription_end).toLocaleDateString()}
+                        </div>
+                      )}
+                      {userData.trial_end && !userData.subscribed && new Date(userData.trial_end) > new Date() && (
+                        <div className="text-xs text-muted-foreground">
+                          ⏰ Trial ends: {new Date(userData.trial_end).toLocaleDateString()}
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    {userData.subscribed ? (
-                      <Badge variant="default">
-                        {userData.subscription_tier} {userData.is_gifted && '(Gifted)'}
-                      </Badge>
-                    ) : userData.trial_end && new Date(userData.trial_end) > new Date() ? (
-                      <Badge variant="outline">Trial</Badge>
-                    ) : (
-                      <Badge variant="secondary">Free</Badge>
-                    )}
-                    {userData.subscription_end && (
-                      <div className="text-xs text-muted-foreground">
-                        Expires: {new Date(userData.subscription_end).toLocaleDateString()}
-                      </div>
-                    )}
-                    {userData.trial_end && !userData.subscribed && new Date(userData.trial_end) > new Date() && (
-                      <div className="text-xs text-muted-foreground">
-                        Trial ends: {new Date(userData.trial_end).toLocaleDateString()}
-                      </div>
-                    )}
-                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
