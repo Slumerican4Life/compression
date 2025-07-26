@@ -67,86 +67,18 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
-      console.log('Loading users - fetching profiles and subscribers...');
+      console.log('Loading users with admin function...');
       
-      // Fetch all profiles and subscribers in parallel
-      const [profilesResult, subscribersResult] = await Promise.all([
-        supabase.from('profiles').select('user_id, display_name, phone_number, created_at').order('created_at', { ascending: false }),
-        supabase.from('subscribers').select('*')
-      ]);
-
-      if (profilesResult.error) {
-        console.error('Profiles error:', profilesResult.error);
-        throw profilesResult.error;
-      }
-
-      if (subscribersResult.error) {
-        console.error('Subscribers error:', subscribersResult.error);
-        throw subscribersResult.error;
-      }
-
-      console.log('Profiles data:', profilesResult.data);
-      console.log('Subscribers data:', subscribersResult.data);
-
-      // For each profile, try to find matching subscriber and get email
-      const enrichedUsers: User[] = [];
+      // Use the database function to get all users with their emails
+      const { data: allUsersData, error: usersError } = await supabase.rpc('get_all_users_admin');
       
-      for (const profile of profilesResult.data || []) {
-        // Try to find subscriber by user_id first
-        let subscriberData = subscribersResult.data?.find(sub => sub.user_id === profile.user_id);
-        
-        // If no subscriber found by user_id, we need to get the user's email to match
-        if (!subscriberData) {
-          // Try to get user email from auth - this requires the admin check
-          try {
-            // Since we can't directly access auth.users, let's find by email pattern
-            // For now, add all profiles even without subscriber data
-            subscriberData = null;
-          } catch (error) {
-            console.log('Could not get auth user:', error);
-          }
-        }
-
-        // Add user regardless - if no subscriber data, show as free user
-        const userEmail = subscriberData?.email || `user-${profile.user_id}@example.com`; // Placeholder email
-        
-        enrichedUsers.push({
-          user_id: profile.user_id,
-          email: userEmail,
-          display_name: profile.display_name,
-          phone_number: profile.phone_number,
-          subscribed: subscriberData?.subscribed || false,
-          subscription_tier: subscriberData?.subscription_tier || null,
-          subscription_end: subscriberData?.subscription_end || null,
-          is_gifted: subscriberData?.is_gifted || false,
-          gifted_by: subscriberData?.gifted_by || null,
-          trial_end: subscriberData?.trial_end || null,
-          created_at: profile.created_at
-        });
+      if (usersError) {
+        console.error('Error getting all users:', usersError);
+        throw usersError;
       }
-
-      // Also add any subscribers that don't have profiles
-      for (const subscriber of subscribersResult.data || []) {
-        if (!subscriber.user_id && subscriber.email) {
-          // This subscriber doesn't have a user_id, add them separately
-          enrichedUsers.push({
-            user_id: '', // No user_id
-            email: subscriber.email,
-            display_name: null,
-            phone_number: null,
-            subscribed: subscriber.subscribed || false,
-            subscription_tier: subscriber.subscription_tier || null,
-            subscription_end: subscriber.subscription_end || null,
-            is_gifted: subscriber.is_gifted || false,
-            gifted_by: subscriber.gifted_by || null,
-            trial_end: subscriber.trial_end || null,
-            created_at: subscriber.created_at
-          });
-        }
-      }
-
-      console.log('Final enriched users:', enrichedUsers);
-      setUsers(enrichedUsers);
+      
+      console.log('All users from DB function:', allUsersData);
+      setUsers(allUsersData || []);
     } catch (error: any) {
       console.error('Complete error:', error);
       toast({
