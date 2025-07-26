@@ -45,6 +45,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          phone_number: string | null
           two_factor_enabled: boolean | null
           two_factor_secret: string | null
           updated_at: string
@@ -56,6 +57,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          phone_number?: string | null
           two_factor_enabled?: boolean | null
           two_factor_secret?: string | null
           updated_at?: string
@@ -67,6 +69,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          phone_number?: string | null
           two_factor_enabled?: boolean | null
           two_factor_secret?: string | null
           updated_at?: string
