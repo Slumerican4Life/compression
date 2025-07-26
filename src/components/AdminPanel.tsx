@@ -67,74 +67,30 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
-      // First fetch all profiles
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, phone_number, created_at')
-        .order('created_at', { ascending: false });
-
-      if (profilesError) throw profilesError;
-
-      // Then fetch all subscribers
-      const { data: subscribersData, error: subscribersError } = await supabase
-        .from('subscribers')
-        .select('*');
-
-      if (subscribersError) throw subscribersError;
-
-      // Create a map of subscribers by user_id and email for quick lookup
-      const subscribersMap = new Map();
-      subscribersData?.forEach(sub => {
-        if (sub.user_id) subscribersMap.set(sub.user_id, sub);
-        if (sub.email) subscribersMap.set(sub.email, sub);
-      });
-
-      // Get user emails from auth
-      const enrichedUsers: User[] = [];
+      // Use the new database function to get all users
+      const { data, error } = await supabase.rpc('get_all_users_admin');
       
-      for (const profile of profilesData || []) {
-        // Try to get subscriber data by user_id first, then by email
-        let subscriberData = subscribersMap.get(profile.user_id);
-        
-        // If no subscriber data, get user email from auth
-        let userEmail = '';
-        if (!subscriberData) {
-          try {
-            const { data: { user: authUser }, error: authError } = await supabase.auth.admin.getUserById(profile.user_id);
-            if (!authError && authUser?.email) {
-              userEmail = authUser.email;
-              subscriberData = subscribersMap.get(userEmail);
-            }
-          } catch (authError) {
-            console.log('Could not fetch auth user:', authError);
-          }
-        } else {
-          userEmail = subscriberData.email;
-        }
+      if (error) throw error;
 
-        // If still no email, skip this user
-        if (!userEmail && !subscriberData?.email) continue;
-
-        enrichedUsers.push({
-          user_id: profile.user_id,
-          email: subscriberData?.email || userEmail,
-          display_name: profile.display_name,
-          phone_number: profile.phone_number,
-          subscribed: subscriberData?.subscribed || false,
-          subscription_tier: subscriberData?.subscription_tier || null,
-          subscription_end: subscriberData?.subscription_end || null,
-          is_gifted: subscriberData?.is_gifted || false,
-          gifted_by: subscriberData?.gifted_by || null,
-          trial_end: subscriberData?.trial_end || null,
-          created_at: profile.created_at
-        });
-      }
+      const enrichedUsers: User[] = (data || []).map((user: any) => ({
+        user_id: user.user_id,
+        email: user.email,
+        display_name: user.display_name,
+        phone_number: user.phone_number,
+        subscribed: user.subscribed,
+        subscription_tier: user.subscription_tier,
+        subscription_end: user.subscription_end,
+        is_gifted: user.is_gifted,
+        gifted_by: user.gifted_by,
+        trial_end: user.trial_end,
+        created_at: user.created_at
+      }));
 
       setUsers(enrichedUsers);
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error loading users",
-        description: "Failed to load user list",
+        description: error.message || "Failed to load user list",
         variant: "destructive",
       });
       console.error('Load users error:', error);

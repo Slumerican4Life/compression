@@ -133,6 +133,22 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_all_users_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          user_id: string
+          email: string
+          display_name: string
+          phone_number: string
+          subscribed: boolean
+          subscription_tier: string
+          subscription_end: string
+          is_gifted: boolean
+          gifted_by: string
+          trial_end: string
+          created_at: string
+        }[]
+      }
       has_premium_access: {
         Args: { user_email: string }
         Returns: boolean
