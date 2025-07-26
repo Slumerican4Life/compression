@@ -12,6 +12,7 @@ import ImageComparison from '@/components/ImageComparison';
 import CompletedImagesGrid from '@/components/CompletedImagesGrid';
 import AdSenseAd from '@/components/AdSenseAd';
 import AdminPanel from '@/components/AdminPanel';
+import LivePreviewComparison from '@/components/LivePreviewComparison';
 
 const ImageUpload = () => {
   const [isDragActive, setIsDragActive] = useState(false);
@@ -402,6 +403,28 @@ const ImageUpload = () => {
                 )}
               </div>
             </div>
+
+            {/* Live Preview Comparison */}
+            {queue.length > 0 && queue[0].preview && (
+              <div className="mt-6 border rounded-lg overflow-hidden bg-muted/30">
+                <div className="p-3 border-b bg-muted/50">
+                  <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Eye className="w-4 h-4" />
+                    Live Preview - {queue[0].file.name}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Drag the slider to compare quality at {Math.round(quality[0] * 100)}% compression
+                  </p>
+                </div>
+                <div className="p-4">
+                  <LivePreviewComparison 
+                    originalFile={queue[0].file}
+                    originalPreview={queue[0].preview}
+                    quality={quality[0]}
+                  />
+                </div>
+              </div>
+            )}
           </Card>
 
           <QueueManager
