@@ -67,10 +67,19 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
+      console.log('Loading users with get_all_users_admin function...');
+      
       // Use the new database function to get all users
       const { data, error } = await supabase.rpc('get_all_users_admin');
       
-      if (error) throw error;
+      console.log('RPC result:', { data, error });
+      
+      if (error) {
+        console.error('RPC error:', error);
+        throw error;
+      }
+
+      console.log('Raw data from function:', data);
 
       const enrichedUsers: User[] = (data || []).map((user: any) => ({
         user_id: user.user_id,
@@ -86,14 +95,15 @@ const AdminPanel = () => {
         created_at: user.created_at
       }));
 
+      console.log('Enriched users:', enrichedUsers);
       setUsers(enrichedUsers);
     } catch (error: any) {
+      console.error('Complete error object:', error);
       toast({
         title: "Error loading users",
         description: error.message || "Failed to load user list",
         variant: "destructive",
       });
-      console.error('Load users error:', error);
     }
   };
 
