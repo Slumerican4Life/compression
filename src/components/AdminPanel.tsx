@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, Gift, Users, Crown, Settings, Filter } from 'lucide-react';
+import { Search, Gift, Users, Crown, Settings, Filter, UserX } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface User {
@@ -37,6 +37,8 @@ const AdminPanel = () => {
   const [giftMonths, setGiftMonths] = useState(1);
   const [giftMessage, setGiftMessage] = useState('');
   const [giftLoading, setGiftLoading] = useState(false);
+  const [deactivateReason, setDeactivateReason] = useState('');
+  const [deactivateLoading, setDeactivateLoading] = useState(false);
 
   useEffect(() => {
     checkAdminStatus();
@@ -154,6 +156,38 @@ const AdminPanel = () => {
       });
     }
     setGiftLoading(false);
+  };
+
+  const deactivateSubscription = async () => {
+    if (!selectedUser) return;
+
+    setDeactivateLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('deactivate-subscription', {
+        body: {
+          targetUserEmail: selectedUser.email,
+          reason: deactivateReason
+        }
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Subscription deactivated!",
+        description: `Successfully deactivated subscription for ${selectedUser.email}`,
+      });
+
+      setSelectedUser(null);
+      setDeactivateReason('');
+      await loadUsers();
+    } catch (error: any) {
+      toast({
+        title: "Failed to deactivate subscription",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    }
+    setDeactivateLoading(false);
   };
 
   const filteredUsers = users.filter(user => {
@@ -361,6 +395,49 @@ const AdminPanel = () => {
                 className="flex-1"
               >
                 {giftLoading ? 'Gifting...' : `Gift ${giftMonths} Month${giftMonths > 1 ? 's' : ''}`}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setSelectedUser(null)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Deactivate Subscription */}
+      {selectedUser && selectedUser.subscribed && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <UserX className="w-5 h-5" />
+              Deactivate Subscription
+            </CardTitle>
+            <CardDescription>
+              Deactivate the subscription for {selectedUser.email}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="reason">Reason (optional)</Label>
+              <Textarea
+                id="reason"
+                placeholder="Add a reason for deactivation..."
+                value={deactivateReason}
+                onChange={(e) => setDeactivateReason(e.target.value)}
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={deactivateSubscription}
+                disabled={deactivateLoading}
+                variant="destructive"
+                className="flex-1"
+              >
+                {deactivateLoading ? 'Deactivating...' : 'Deactivate Subscription'}
               </Button>
               <Button
                 variant="outline"
