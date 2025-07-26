@@ -67,18 +67,52 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
-      console.log('Loading users with admin function...');
+      console.log('Loading users - fetching profiles and subscribers...');
       
-      // Use the database function to get all users with their emails
-      const { data: allUsersData, error: usersError } = await supabase.rpc('get_all_users_admin');
-      
-      if (usersError) {
-        console.error('Error getting all users:', usersError);
-        throw usersError;
+      // Fetch all profiles and subscribers in parallel
+      const [profilesResult, subscribersResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, display_name, phone_number, created_at').order('created_at', { ascending: false }),
+        supabase.from('subscribers').select('*')
+      ]);
+
+      if (profilesResult.error) {
+        console.error('Profiles error:', profilesResult.error);
+        throw profilesResult.error;
       }
+
+      if (subscribersResult.error) {
+        console.error('Subscribers error:', subscribersResult.error);
+        throw subscribersResult.error;
+      }
+
+      console.log('Profiles data:', profilesResult.data);
+      console.log('Subscribers data:', subscribersResult.data);
+
+      // Create enriched users list
+      const enrichedUsers: User[] = [];
       
-      console.log('All users from DB function:', allUsersData);
-      setUsers(allUsersData || []);
+      // Process each subscriber record (since they have the email)
+      for (const subscriber of subscribersResult.data || []) {
+        // Find matching profile if exists
+        const profile = profilesResult.data?.find(p => p.user_id === subscriber.user_id);
+        
+        enrichedUsers.push({
+          user_id: subscriber.user_id || '',
+          email: subscriber.email,
+          display_name: profile?.display_name || null,
+          phone_number: profile?.phone_number || null,
+          subscribed: subscriber.subscribed || false,
+          subscription_tier: subscriber.subscription_tier || null,
+          subscription_end: subscriber.subscription_end || null,
+          is_gifted: subscriber.is_gifted || false,
+          gifted_by: subscriber.gifted_by || null,
+          trial_end: subscriber.trial_end || null,
+          created_at: profile?.created_at || subscriber.created_at
+        });
+      }
+
+      console.log('Final enriched users:', enrichedUsers);
+      setUsers(enrichedUsers);
     } catch (error: any) {
       console.error('Complete error:', error);
       toast({
