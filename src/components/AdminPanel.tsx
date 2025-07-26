@@ -67,64 +67,82 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
-      console.log('Loading users - fetching profiles...');
+      console.log('Loading users - fetching profiles and subscribers...');
       
-      // Fetch all profiles first
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, phone_number, created_at')
-        .order('created_at', { ascending: false });
+      // Fetch all profiles and subscribers in parallel
+      const [profilesResult, subscribersResult] = await Promise.all([
+        supabase.from('profiles').select('user_id, display_name, phone_number, created_at').order('created_at', { ascending: false }),
+        supabase.from('subscribers').select('*')
+      ]);
 
-      if (profilesError) {
-        console.error('Profiles error:', profilesError);
-        throw profilesError;
+      if (profilesResult.error) {
+        console.error('Profiles error:', profilesResult.error);
+        throw profilesResult.error;
       }
 
-      console.log('Profiles data:', profilesData);
-
-      // Fetch all subscribers
-      const { data: subscribersData, error: subscribersError } = await supabase
-        .from('subscribers')
-        .select('*');
-
-      if (subscribersError) {
-        console.error('Subscribers error:', subscribersError);
-        throw subscribersError;
+      if (subscribersResult.error) {
+        console.error('Subscribers error:', subscribersResult.error);
+        throw subscribersResult.error;
       }
 
-      console.log('Subscribers data:', subscribersData);
+      console.log('Profiles data:', profilesResult.data);
+      console.log('Subscribers data:', subscribersResult.data);
 
-      // Create subscriber map for quick lookup
-      const subscribersMap = new Map();
-      subscribersData?.forEach(sub => {
-        if (sub.user_id) subscribersMap.set(sub.user_id, sub);
-      });
-
-      // Map profiles to user data
+      // For each profile, try to find matching subscriber and get email
       const enrichedUsers: User[] = [];
       
-      for (const profile of profilesData || []) {
-        const subscriberData = subscribersMap.get(profile.user_id);
+      for (const profile of profilesResult.data || []) {
+        // Try to find subscriber by user_id first
+        let subscriberData = subscribersResult.data?.find(sub => sub.user_id === profile.user_id);
         
-        // Skip if no subscriber data (we need at least an email)
-        if (!subscriberData?.email) {
-          console.log('Skipping profile without subscriber email:', profile.user_id);
-          continue;
+        // If no subscriber found by user_id, we need to get the user's email to match
+        if (!subscriberData) {
+          // Try to get user email from auth - this requires the admin check
+          try {
+            // Since we can't directly access auth.users, let's find by email pattern
+            // For now, add all profiles even without subscriber data
+            subscriberData = null;
+          } catch (error) {
+            console.log('Could not get auth user:', error);
+          }
         }
 
+        // Add user regardless - if no subscriber data, show as free user
+        const userEmail = subscriberData?.email || `user-${profile.user_id}@example.com`; // Placeholder email
+        
         enrichedUsers.push({
           user_id: profile.user_id,
-          email: subscriberData.email,
+          email: userEmail,
           display_name: profile.display_name,
           phone_number: profile.phone_number,
-          subscribed: subscriberData.subscribed || false,
-          subscription_tier: subscriberData.subscription_tier,
-          subscription_end: subscriberData.subscription_end,
-          is_gifted: subscriberData.is_gifted || false,
-          gifted_by: subscriberData.gifted_by,
-          trial_end: subscriberData.trial_end,
+          subscribed: subscriberData?.subscribed || false,
+          subscription_tier: subscriberData?.subscription_tier || null,
+          subscription_end: subscriberData?.subscription_end || null,
+          is_gifted: subscriberData?.is_gifted || false,
+          gifted_by: subscriberData?.gifted_by || null,
+          trial_end: subscriberData?.trial_end || null,
           created_at: profile.created_at
         });
+      }
+
+      // Also add any subscribers that don't have profiles
+      for (const subscriber of subscribersResult.data || []) {
+        if (!subscriber.user_id && subscriber.email) {
+          // This subscriber doesn't have a user_id, add them separately
+          enrichedUsers.push({
+            user_id: '', // No user_id
+            email: subscriber.email,
+            display_name: null,
+            phone_number: null,
+            subscribed: subscriber.subscribed || false,
+            subscription_tier: subscriber.subscription_tier || null,
+            subscription_end: subscriber.subscription_end || null,
+            is_gifted: subscriber.is_gifted || false,
+            gifted_by: subscriber.gifted_by || null,
+            trial_end: subscriber.trial_end || null,
+            created_at: subscriber.created_at
+          });
+        }
       }
 
       console.log('Final enriched users:', enrichedUsers);
