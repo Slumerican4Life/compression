@@ -67,38 +67,70 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
-      console.log('Loading users with get_all_users_admin function...');
+      console.log('Loading users - fetching profiles...');
       
-      // Use the new database function to get all users
-      const { data, error } = await supabase.rpc('get_all_users_admin');
-      
-      console.log('RPC result:', { data, error });
-      
-      if (error) {
-        console.error('RPC error:', error);
-        throw error;
+      // Fetch all profiles first
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, phone_number, created_at')
+        .order('created_at', { ascending: false });
+
+      if (profilesError) {
+        console.error('Profiles error:', profilesError);
+        throw profilesError;
       }
 
-      console.log('Raw data from function:', data);
+      console.log('Profiles data:', profilesData);
 
-      const enrichedUsers: User[] = (data || []).map((user: any) => ({
-        user_id: user.user_id,
-        email: user.email,
-        display_name: user.display_name,
-        phone_number: user.phone_number,
-        subscribed: user.subscribed,
-        subscription_tier: user.subscription_tier,
-        subscription_end: user.subscription_end,
-        is_gifted: user.is_gifted,
-        gifted_by: user.gifted_by,
-        trial_end: user.trial_end,
-        created_at: user.created_at
-      }));
+      // Fetch all subscribers
+      const { data: subscribersData, error: subscribersError } = await supabase
+        .from('subscribers')
+        .select('*');
 
-      console.log('Enriched users:', enrichedUsers);
+      if (subscribersError) {
+        console.error('Subscribers error:', subscribersError);
+        throw subscribersError;
+      }
+
+      console.log('Subscribers data:', subscribersData);
+
+      // Create subscriber map for quick lookup
+      const subscribersMap = new Map();
+      subscribersData?.forEach(sub => {
+        if (sub.user_id) subscribersMap.set(sub.user_id, sub);
+      });
+
+      // Map profiles to user data
+      const enrichedUsers: User[] = [];
+      
+      for (const profile of profilesData || []) {
+        const subscriberData = subscribersMap.get(profile.user_id);
+        
+        // Skip if no subscriber data (we need at least an email)
+        if (!subscriberData?.email) {
+          console.log('Skipping profile without subscriber email:', profile.user_id);
+          continue;
+        }
+
+        enrichedUsers.push({
+          user_id: profile.user_id,
+          email: subscriberData.email,
+          display_name: profile.display_name,
+          phone_number: profile.phone_number,
+          subscribed: subscriberData.subscribed || false,
+          subscription_tier: subscriberData.subscription_tier,
+          subscription_end: subscriberData.subscription_end,
+          is_gifted: subscriberData.is_gifted || false,
+          gifted_by: subscriberData.gifted_by,
+          trial_end: subscriberData.trial_end,
+          created_at: profile.created_at
+        });
+      }
+
+      console.log('Final enriched users:', enrichedUsers);
       setUsers(enrichedUsers);
     } catch (error: any) {
-      console.error('Complete error object:', error);
+      console.error('Complete error:', error);
       toast({
         title: "Error loading users",
         description: error.message || "Failed to load user list",
