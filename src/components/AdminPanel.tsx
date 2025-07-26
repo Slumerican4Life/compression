@@ -14,11 +14,14 @@ import { useToast } from '@/hooks/use-toast';
 interface User {
   email: string;
   user_id: string;
+  display_name: string | null;
+  phone_number: string | null;
   subscribed: boolean;
   subscription_tier: string | null;
   subscription_end: string | null;
   is_gifted: boolean;
   gifted_by: string | null;
+  trial_end: string | null;
   created_at: string;
 }
 
@@ -63,13 +66,45 @@ const AdminPanel = () => {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase
+      // First fetch all subscribers
+      const { data: subscribersData, error: subscribersError } = await supabase
         .from('subscribers')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setUsers(data || []);
+      if (subscribersError) throw subscribersError;
+
+      // Then fetch profiles for each user
+      const enrichedUsers: User[] = [];
+      
+      for (const subscriber of subscribersData || []) {
+        let profileData = null;
+        
+        if (subscriber.user_id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, phone_number')
+            .eq('user_id', subscriber.user_id)
+            .single();
+          profileData = profile;
+        }
+
+        enrichedUsers.push({
+          user_id: subscriber.user_id || '',
+          email: subscriber.email,
+          display_name: profileData?.display_name || null,
+          phone_number: profileData?.phone_number || null,
+          subscribed: subscriber.subscribed,
+          subscription_tier: subscriber.subscription_tier,
+          subscription_end: subscriber.subscription_end,
+          is_gifted: subscriber.is_gifted || false,
+          gifted_by: subscriber.gifted_by,
+          trial_end: subscriber.trial_end,
+          created_at: subscriber.created_at
+        });
+      }
+
+      setUsers(enrichedUsers);
     } catch (error) {
       toast({
         title: "Error loading users",
@@ -113,7 +148,9 @@ const AdminPanel = () => {
   };
 
   const filteredUsers = users.filter(user =>
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.display_name && user.display_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (user.phone_number && user.phone_number.includes(searchTerm))
   );
 
   if (loading) {
@@ -157,7 +194,7 @@ const AdminPanel = () => {
                 <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search by email..."
+                  placeholder="Search by email, name, or phone..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -181,27 +218,44 @@ const AdminPanel = () => {
                 onClick={() => setSelectedUser(userData)}
               >
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="flex-1">
                     <div className="font-medium">{userData.email}</div>
-                    <div className="text-sm text-muted-foreground">
+                    {userData.display_name && (
+                      <div className="text-sm text-muted-foreground">
+                        Name: {userData.display_name}
+                      </div>
+                    )}
+                    {userData.phone_number && (
+                      <div className="text-sm text-muted-foreground">
+                        Phone: {userData.phone_number}
+                      </div>
+                    )}
+                    <div className="text-xs text-muted-foreground">
                       Joined: {new Date(userData.created_at).toLocaleDateString()}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-1">
                     {userData.subscribed ? (
                       <Badge variant="default">
                         {userData.subscription_tier} {userData.is_gifted && '(Gifted)'}
                       </Badge>
+                    ) : userData.trial_end && new Date(userData.trial_end) > new Date() ? (
+                      <Badge variant="outline">Trial</Badge>
                     ) : (
                       <Badge variant="secondary">Free</Badge>
                     )}
+                    {userData.subscription_end && (
+                      <div className="text-xs text-muted-foreground">
+                        Expires: {new Date(userData.subscription_end).toLocaleDateString()}
+                      </div>
+                    )}
+                    {userData.trial_end && !userData.subscribed && new Date(userData.trial_end) > new Date() && (
+                      <div className="text-xs text-muted-foreground">
+                        Trial ends: {new Date(userData.trial_end).toLocaleDateString()}
+                      </div>
+                    )}
                   </div>
                 </div>
-                {userData.subscription_end && (
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Expires: {new Date(userData.subscription_end).toLocaleDateString()}
-                  </div>
-                )}
               </div>
             ))}
           </div>
